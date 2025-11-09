@@ -1,67 +1,77 @@
-# Dark Maquina v0.1 (POC)
+# Dark Maquina (POC)
 
-Pequeño secuenciador generativo en terminal orientado a hard/dark techno y makina,
-pensado para integrarse con un DAW (Ardour) y sintes como Surge XT a través de
-puertos MIDI virtuales (IAC en macOS).
+Secuenciador generativo en terminal orientado a hard/dark techno, makina e industrial.
+Pensado para integrarse con un DAW (Ardour, etc.) y sintetizadores (Surge XT, Monique,
+Tyrell, etc.) mediante puertos MIDI virtuales.
 
-Este POC no pretende ser un producto final, sino una prueba seria de concepto:
-¿es útil, inspira, se siente como una máquina con groove o solo como un script más?
+No es un plugin gráfico ni un juguete aleatorio: es una máquina de patrones
+para sacar grooves rápidos, probar ideas y exportarlas a MIDI.
 
-## Características (v0.1)
+## Características actuales
 
-- Interfaz TUI en terminal con aspecto de groovebox.
-- 4 pistas lógicas:
-    - KICK: patrón 4x4 sólido.
-    - BASS: línea en escala oscura (dark/phrygian-like).
-    - HATS: patrones con probabilidad.
-    - LEAD: eventos ocasionales para textura.
-- Control en tiempo real:
+- Interfaz TUI tipo groovebox:
     - Barra de pasos animada.
+    - Estado por pista: ACTIVE / MUTE / SOLO / LOCK.
+- Configuración flexible:
+    - Elección de “tema” base (`dark_174`, `makina_180`, `industrial_172`, `custom`).
+    - Múltiples pistas definidas por el usuario (1–8).
+    - Roles por pista:
+        - `kick`, `bass`, `hats`, `perc`, `stab`, `lead`, `pad`, `fx`, `raw`.
+    - Asignación de puerto MIDI por pista.
+    - Nota raíz, escala y densidad configurables.
+- Perfiles:
+    - Carga de perfiles con `--profile`.
+    - Guardado automático de la última sesión como `last_session`.
+- Lógica musical por rol:
+    - `kick`: 4x4 sólido con pequeños ghosts según energía.
+    - `bass`: patrones base/gallop sobre escalas oscuras.
+    - `hats` / `perc`: offbeats y subdivisiones en función de densidad/energía.
+    - `stab` / `lead`: eventos puntuales, más presentes con energía alta.
+    - `pad` / `fx`: capas esporádicas.
+    - `raw`: canal libre gobernado por densidad.
+- Control en tiempo real:
     - Play / Pause.
-    - Ajuste de BPM.
-    - Mute / Solo / Randomize sencillos.
-- Salida MIDI real usando `mido` + `python-rtmidi`.
-- Pensado para usarse con:
-    - macOS
-    - IAC Driver
-    - Ardour con Surge XT (u otro sinte) escuchando el puerto.
+    - BPM +/-.
+    - Energía +/-.
+    - Mute / Solo por pista.
+    - Random suave por pista (si no está lock).
+    - Lock/Unlock por pista.
+    - Densidad +/- por pista.
+    - Transpose +/- por pista.
+    - Trigger de fills (marcador interno).
+- Salida MIDI real:
+    - `mido` + `python-rtmidi`.
+    - Enrutamiento a cualquier DAW/sinte vía puertos virtuales.
 
-## Lo que NO hace (a propósito)
+## Exportar loops a MIDI
 
-Para mantener el POC limpio, quedan fuera:
+Puedes congelar lo que está sonando:
 
-- Cambio de presets del sinte.
-- Automatización avanzada de CC.
-- Integración por OSC con Ardour.
-- Multipuerto fino por pista.
-- Guardado/carga de escenas o proyectos.
-- Cualquier dependencia de "IA pesada".
+- Pulsa `R` durante el jam.
+- Se exportan 4 ciclos completos (`bars=4`) de todas las pistas **no muteadas**.
+- Cada pista activa se escribe como pista independiente en un `.mid`.
+- Los archivos se guardan en `out/loop_YYYYMMDD_HHMMSS.mid`.
 
-Si esto demuestra utilidad (fluye, suena, inspira), esos puntos son candidatos para una v0.2+.
+Uso típico:
+
+1. Configuras roles y puertos según tu setup.
+2. Jameas hasta que salga algo con groove.
+3. Bloqueas las pistas que te gusten (LOCK).
+4. Pulsas `R`.
+5. Arrastras el `.mid` a tu DAW y sigues trabajando ahí.
 
 ## Requisitos
 
 - Python 3.9+ recomendado.
-- macOS con IAC Driver activado.
 - `pip install -r requirements.txt`
-- DAW (ej. Ardour) con:
-    - Una pista de instrumento (Surge XT, Monique, Tyrell, etc.).
-    - Esa pista conectada a un puerto IAC que contenga el texto `Surge`
-      o el nombre que configures.
+- Sistema con puertos MIDI:
+    - macOS: IAC Driver activado.
+    - Linux/Windows: loopMIDI / ALSA / similar.
+- DAW con:
+    - Pistas MIDI escuchando los puertos configurados.
+    - Sintetizadores cargados en esas pistas.
 
-## Configuración rápida (entorno típico con Ardour + Surge XT)
-
-1. Activa IAC Driver en macOS (Configuración Audio MIDI).
-2. Crea un puerto, por ejemplo: `Driver IAC PythonToSurge`.
-3. En Ardour:
-    - Crea pista MIDI con Surge XT como instrumento.
-    - Conecta `Driver IAC PythonToSurge` a la entrada MIDI de esa pista.
-    - Asegúrate de que la salida de la pista va al Master y suena.
-4. En Surge XT, selecciona un preset adecuado para bajo/lead/bombo sintético.
-
-## Uso
-
-Desde la carpeta `darkmaquina_poc`:
+## Uso rápido
 
 ```bash
 pip install -r requirements.txt
