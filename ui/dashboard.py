@@ -11,13 +11,20 @@ class TrackState:
         self.name = name
         self.solo = False
         self.muted = False
+        self.locked = False
 
     @property
     def label(self) -> str:
+        status = []
+        if self.locked:
+            status.append("LOCK")
         if self.solo:
-            return "[SOLO]"
+            status.append("SOLO")
         if self.muted:
-            return "[MUTED]"
+            status.append("MUTE")
+        
+        if status:
+            return "[" + "|".join(status) + "]"
         return "[ACTIVE]"
 
 
@@ -45,8 +52,8 @@ class Dashboard:
             name = t.name.ljust(6)
             table.add_row(f"{name} {bar}  {t.label}")
 
-        help1 = "[1-8] Sel pista  [Q] Mute  [W] Solo  [E] Random pista"
-        help2 = "[A/S] BPM-/+  [Z/X] Energy-/+  [SPACE] Play/Pause  [ESC] Quit"
+        help1 = "[1-8] Sel  [Q] Mute  [W] Solo  [E] Random  [L] Lock  [F] Fill"
+        help2 = "[O/P] Density-/+  [,/.] Root-/+  [A/S] BPM-/+  [Z/X] Energy-/+  [SPACE] Pause  [ESC] Quit"
 
         panel = Panel.fit(table, title="DARK MAQUINA", border_style="white")
 

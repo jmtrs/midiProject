@@ -77,8 +77,64 @@ def _list_ports() -> List[str]:
     return mido.get_output_names()
 
 
+def _propose_quick_setup(ports: List[str]) -> SessionConfig:
+    """Propone una configuración rápida y razonable."""
+    print("\n=== Configuración rápida ===")
+    print("\nConfiguración propuesta:")
+    print(f"  BPM: 174  |  Energy: 3  |  Pasos: 16\n")
+    
+    default_port = ports[0] if ports else "IAC Driver Bus 1"
+    
+    configs = [
+        ("KICK", "kick", 36, "darktech", 1.0),
+        ("BASS", "bass", 42, "darktech", 0.8),
+        ("HATS", "hats", 70, "darktech", 0.6),
+        ("LEAD", "lead", 60, "phrygian", 0.3),
+    ]
+    
+    for name, role, root, scale, density in configs:
+        print(f"  Pista {name:6} → [{default_port}] ({role}, root {root})")
+    
+    print("\n¿Aceptar esta configuración?")
+    accept = input("[Enter = Sí, N = Editar paso a paso]: ").strip().lower()
+    
+    if accept != "n":
+        tracks = [
+            TrackSetup(
+                name=name,
+                role=role,
+                port_name=default_port,
+                root=root,
+                scale=scale,
+                density=density,
+                steps=16,
+            )
+            for name, role, root, scale, density in configs
+        ]
+        return SessionConfig(bpm=174, steps=16, energy=3, tracks=tracks)
+    
+    return None
+
+
 def initial_setup() -> SessionConfig:
     print("=== DARK MAQUINA - Configuración inicial ===")
+    
+    # Puertos MIDI
+    ports = _list_ports()
+    if not ports:
+        raise SystemExit("No hay puertos MIDI de salida disponibles.")
+
+    print("\nPuertos MIDI detectados:")
+    for i, p in enumerate(ports, start=1):
+        print(f"  {i}. {p}")
+    
+    # Intentar configuración rápida
+    quick = _propose_quick_setup(ports)
+    if quick:
+        return quick
+    
+    # Si rechazan quick setup, modo manual completo
+    print("\n=== Configuración manual ===")
 
     # Elegir tema base
     theme_keys = list(THEMES.keys()) + ["custom"]
@@ -110,15 +166,6 @@ def initial_setup() -> SessionConfig:
         steps = t.get("steps", 16)
         energy = t.get("energy", 3)
         print(f"Usando plantilla {t['label']} - BPM {bpm}, pasos {steps}, energía {energy}")
-
-    # Puertos MIDI
-    ports = _list_ports()
-    if not ports:
-        raise SystemExit("No hay puertos MIDI de salida disponibles.")
-
-    print("\nPuertos MIDI detectados:")
-    for i, p in enumerate(ports, start=1):
-        print(f"  {i}. {p}")
 
     # Número de pistas
     num_tracks = _ask_int("\nNúmero de pistas (1-8)", 4, 1, 8)

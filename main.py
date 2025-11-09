@@ -1,6 +1,8 @@
 import sys
 import threading
 import queue
+import argparse
+from pathlib import Path
 
 import readchar
 
@@ -8,10 +10,12 @@ from core.clock import Clock
 from core.config import initial_setup, SessionConfig, TrackSetup
 from core.pattern import TrackPattern, TrackConfig
 from core.synth import MidiSynth
+from core.profiles import ProfileManager
 from ui.dashboard import LiveDashboard, TrackState
 
 
 KEY_QUEUE = queue.Queue()
+LAST_SESSION_FILE = Path("last_session.yml")
 
 
 def input_worker():
@@ -23,6 +27,42 @@ def input_worker():
         KEY_QUEUE.put(key)
         if key == "\x1b":
             break
+
+
+def get_session_config(args) -> SessionConfig:
+    """Determina la configuración según argumentos CLI."""
+    profile_mgr = ProfileManager()
+    
+    # 1. Si se pasa --profile, usar ese perfil
+    if args.profile:
+        print(f"Cargando perfil '{args.profile}'...")
+        session = profile_mgr.load_profile(args.profile)
+        if session:
+            print(f"✓ Perfil '{args.profile}' cargado.\n")
+            return session
+        else:
+            print(f"✗ Perfil '{args.profile}' no encontrado.")
+            print(f"Perfiles disponibles: {', '.join(profile_mgr.list_profiles())}\n")
+            sys.exit(1)
+    
+    # 2. Si existe last_session.yml, preguntar si cargar
+    if LAST_SESSION_FILE.exists():
+        print("Se encontró una sesión anterior.")
+        choice = input("¿Cargar última sesión? [Enter = Sí, N = Nueva]: ").strip().lower()
+        if choice != "n":
+            session = profile_mgr.load_profile("../last_session")
+            if session:
+                print("✓ Última sesión cargada.\n")
+                return session
+    
+    # 3. Setup interactivo
+    return initial_setup()
+
+
+def save_last_session(session: SessionConfig) -> None:
+    """Guarda la configuración actual como última sesión."""
+    profile_mgr = ProfileManager()
+    profile_mgr.save_profile("../last_session", session)
 
 
 def build_patterns(session: SessionConfig):
@@ -43,7 +83,16 @@ def build_patterns(session: SessionConfig):
 
 
 def main():
-    session = initial_setup()
+    parser = argparse.ArgumentParser(description="Dark Maquina - Secuenciador generativo")
+    parser.add_argument(
+        "--profile",
+        "-p",
+        type=str,
+        help="Cargar perfil de configuración (ej: studio_home, live_berlin)",
+    )
+    args = parser.parse_args()
+    
+    session = get_session_config(args)
 
     clock = Clock(bpm=session.bpm)
     dash = LiveDashboard(steps=session.steps)
@@ -102,9 +151,42 @@ def main():
                                 ts.muted = False
 
                 elif key.lower() == "e":
-                    p = track_patterns[selected_track]
-                    p.randomize_mode()
-                    p.randomize_density_soft()
+                    # Randomize solo si no está locked
+                    ts = track_states[selected_track]
+                    if not ts.locked:
+                        p = track_patterns[selected_track]
+                        p.randomize_mode()
+                        p.randomize_density_soft()
+
+                elif key.lower() == "l":
+                    # Lock/unlock pista seleccionada
+                    ts = track_states[selected_track]
+                    ts.locked = not ts.locked
+
+                elif key.lower() == "o":
+                    # Bajar densidad
+                    cfg = track_cfgs[selected_track]
+                    cfg.density = max(0.0, cfg.density - 0.1)
+
+                elif key.lower() == "p":
+                    # Subir densidad
+                    cfg = track_cfgs[selected_track]
+                    cfg.density = min(1.0, cfg.density + 0.1)
+
+                elif key == ",":
+                    # Bajar root (transponer abajo)
+                    cfg = track_cfgs[selected_track]
+                    cfg.root = max(12, cfg.root - 1)
+
+                elif key == ".":
+                    # Subir root (transponer arriba)
+                    cfg = track_cfgs[selected_track]
+                    cfg.root = min(100, cfg.root + 1)
+
+                elif key.lower() == "f":
+                    # Solicitar fill en todas las pistas
+                    for p in track_patterns:
+                        p.request_fill()
 
                 elif key == "\x1b":
                     raise KeyboardInterrupt
@@ -131,18 +213,26 @@ def main():
                         continue
 
                     role = cfg.role
+                    
+                    # Ajustes de velocity y length según rol y energía
+                    energy_boost = (energy - 3) * 5  # -10 a +10
+                    
                     if role == "kick":
-                        vel, length = 120, 0.04
+                        vel, length = 120 + energy_boost, 0.04
                     elif role == "bass":
-                        vel, length = 112, 0.09
+                        vel, length = 112 + energy_boost, 0.09
                     elif role in ("hats", "perc"):
-                        vel, length = 70, 0.02
+                        # Hats más presentes con alta energía
+                        vel, length = 70 + (energy_boost * 2), 0.02
                     elif role in ("stab", "lead"):
-                        vel, length = 90, 0.11
+                        vel, length = 90 + energy_boost, 0.11
                     elif role == "pad":
-                        vel, length = 80, 0.25
+                        vel, length = 80 + energy_boost, 0.25
                     else:
-                        vel, length = 90, 0.08
+                        vel, length = 90 + energy_boost, 0.08
+                    
+                    # Clamp velocity a rango MIDI válido
+                    vel = max(1, min(127, vel))
 
                     note = pattern.step_note(current_step, energy)
                     if note is not None:
@@ -152,6 +242,12 @@ def main():
                     s.process_pending()
 
                 current_step = (current_step + 1) % session.steps
+                
+                # Avanzar contador de compases al completar ciclo
+                if current_step == 0:
+                    for p in track_patterns:
+                        p.advance_bar()
+                
                 clock.sleep_step()
             else:
                 for s in synths:
@@ -161,6 +257,11 @@ def main():
     except KeyboardInterrupt:
         for s in synths:
             s.process_pending()
+        
+        # Guardar sesión al salir
+        print("\nGuardando sesión...")
+        save_last_session(session)
+        print("✓ Sesión guardada.")
         sys.exit(0)
 
 
