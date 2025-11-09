@@ -81,7 +81,7 @@ class Dashboard:
             table.add_row("")
             table.add_row(selected_info)
 
-        panel = Panel.fit(table, title="DARK MAQUINA", border_style="white")
+        panel = Panel.fit(table, title="DARK MAKINA", border_style="white")
 
         console.clear()
         console.print(panel)

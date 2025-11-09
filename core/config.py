@@ -117,7 +117,7 @@ def _propose_quick_setup(ports: List[str]) -> SessionConfig:
 
 
 def initial_setup() -> SessionConfig:
-    print("=== DARK MAQUINA - Configuración inicial ===")
+    print("=== DARK MAKINA - Configuración inicial ===")
     
     # Puertos MIDI
     ports = _list_ports()

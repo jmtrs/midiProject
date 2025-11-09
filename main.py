@@ -112,7 +112,7 @@ def build_patterns(session: SessionConfig):
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Dark Maquina - Secuenciador generativo en terminal"
+        description="Dark Makina - Secuenciador generativo en terminal"
     )
     parser.add_argument(
         "--profile",

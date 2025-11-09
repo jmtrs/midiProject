@@ -1,4 +1,4 @@
-# Dark Maquina (POC)
+# Dark Makina (POC)
 
 Secuenciador generativo en terminal orientado a hard/dark techno, makina e industrial.
 Pensado para integrarse con un DAW (Ardour, etc.) y sintetizadores (Surge XT, Monique,
