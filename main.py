@@ -17,7 +17,7 @@ from core.midi_export import MidiExporter
 from ui.dashboard import LiveDashboard, TrackState
 
 KEY_QUEUE: "queue.Queue[str]" = queue.Queue()
-LAST_SESSION_FILE = Path("last_session.yml")
+LAST_SESSION_FILE = Path("profiles/last_session.yml")
 
 
 def input_worker() -> None:
