@@ -1,0 +1,32 @@
+bpm: 174
+steps: 16
+energy: 3
+tracks:
+- name: KICK
+  role: kick
+  port_name: IAC Driver Bus 1
+  root: 36
+  scale: darktech
+  density: 1.0
+  steps: 16
+- name: BASS
+  role: bass
+  port_name: IAC Driver Bus 1
+  root: 42
+  scale: darktech
+  density: 0.8
+  steps: 16
+- name: HATS
+  role: hats
+  port_name: IAC Driver Bus 1
+  root: 70
+  scale: darktech
+  density: 0.6
+  steps: 16
+- name: LEAD
+  role: lead
+  port_name: IAC Driver Bus 1
+  root: 60
+  scale: phrygian
+  density: 0.3
+  steps: 16

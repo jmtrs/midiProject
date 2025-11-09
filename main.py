@@ -1,6 +1,8 @@
 import sys
 import threading
 import queue
+import argparse
+from pathlib import Path
 
 import readchar
 
@@ -8,10 +10,12 @@ from core.clock import Clock
 from core.config import initial_setup, SessionConfig, TrackSetup
 from core.pattern import TrackPattern, TrackConfig
 from core.synth import MidiSynth
+from core.profiles import ProfileManager
 from ui.dashboard import LiveDashboard, TrackState
 
 
 KEY_QUEUE = queue.Queue()
+LAST_SESSION_FILE = Path("last_session.yml")
 
 
 def input_worker():
@@ -23,6 +27,42 @@ def input_worker():
         KEY_QUEUE.put(key)
         if key == "\x1b":
             break
+
+
+def get_session_config(args) -> SessionConfig:
+    """Determina la configuración según argumentos CLI."""
+    profile_mgr = ProfileManager()
+    
+    # 1. Si se pasa --profile, usar ese perfil
+    if args.profile:
+        print(f"Cargando perfil '{args.profile}'...")
+        session = profile_mgr.load_profile(args.profile)
+        if session:
+            print(f"✓ Perfil '{args.profile}' cargado.\n")
+            return session
+        else:
+            print(f"✗ Perfil '{args.profile}' no encontrado.")
+            print(f"Perfiles disponibles: {', '.join(profile_mgr.list_profiles())}\n")
+            sys.exit(1)
+    
+    # 2. Si existe last_session.yml, preguntar si cargar
+    if LAST_SESSION_FILE.exists():
+        print("Se encontró una sesión anterior.")
+        choice = input("¿Cargar última sesión? [Enter = Sí, N = Nueva]: ").strip().lower()
+        if choice != "n":
+            session = profile_mgr.load_profile("../last_session")
+            if session:
+                print("✓ Última sesión cargada.\n")
+                return session
+    
+    # 3. Setup interactivo
+    return initial_setup()
+
+
+def save_last_session(session: SessionConfig) -> None:
+    """Guarda la configuración actual como última sesión."""
+    profile_mgr = ProfileManager()
+    profile_mgr.save_profile("../last_session", session)
 
 
 def build_patterns(session: SessionConfig):
@@ -43,7 +83,16 @@ def build_patterns(session: SessionConfig):
 
 
 def main():
-    session = initial_setup()
+    parser = argparse.ArgumentParser(description="Dark Maquina - Secuenciador generativo")
+    parser.add_argument(
+        "--profile",
+        "-p",
+        type=str,
+        help="Cargar perfil de configuración (ej: studio_home, live_berlin)",
+    )
+    args = parser.parse_args()
+    
+    session = get_session_config(args)
 
     clock = Clock(bpm=session.bpm)
     dash = LiveDashboard(steps=session.steps)
@@ -161,6 +210,11 @@ def main():
     except KeyboardInterrupt:
         for s in synths:
             s.process_pending()
+        
+        # Guardar sesión al salir
+        print("\nGuardando sesión...")
+        save_last_session(session)
+        print("✓ Sesión guardada.")
         sys.exit(0)
 
 
