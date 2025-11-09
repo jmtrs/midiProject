@@ -52,8 +52,8 @@ class Dashboard:
             name = t.name.ljust(6)
             table.add_row(f"{name} {bar}  {t.label}")
 
-        help1 = "[1-8] Sel  [Q] Mute  [W] Solo  [E] Random  [L] Lock  [O/P] Density-/+  [,/.] Root-/+"
-        help2 = "[A/S] BPM-/+  [Z/X] Energy-/+  [SPACE] Play/Pause  [ESC] Quit"
+        help1 = "[1-8] Sel  [Q] Mute  [W] Solo  [E] Random  [L] Lock  [F] Fill"
+        help2 = "[O/P] Density-/+  [,/.] Root-/+  [A/S] BPM-/+  [Z/X] Energy-/+  [SPACE] Pause  [ESC] Quit"
 
         panel = Panel.fit(table, title="DARK MAQUINA", border_style="white")
 

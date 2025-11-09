@@ -183,6 +183,11 @@ def main():
                     cfg = track_cfgs[selected_track]
                     cfg.root = min(100, cfg.root + 1)
 
+                elif key.lower() == "f":
+                    # Solicitar fill en todas las pistas
+                    for p in track_patterns:
+                        p.request_fill()
+
                 elif key == "\x1b":
                     raise KeyboardInterrupt
 
@@ -208,18 +213,26 @@ def main():
                         continue
 
                     role = cfg.role
+                    
+                    # Ajustes de velocity y length según rol y energía
+                    energy_boost = (energy - 3) * 5  # -10 a +10
+                    
                     if role == "kick":
-                        vel, length = 120, 0.04
+                        vel, length = 120 + energy_boost, 0.04
                     elif role == "bass":
-                        vel, length = 112, 0.09
+                        vel, length = 112 + energy_boost, 0.09
                     elif role in ("hats", "perc"):
-                        vel, length = 70, 0.02
+                        # Hats más presentes con alta energía
+                        vel, length = 70 + (energy_boost * 2), 0.02
                     elif role in ("stab", "lead"):
-                        vel, length = 90, 0.11
+                        vel, length = 90 + energy_boost, 0.11
                     elif role == "pad":
-                        vel, length = 80, 0.25
+                        vel, length = 80 + energy_boost, 0.25
                     else:
-                        vel, length = 90, 0.08
+                        vel, length = 90 + energy_boost, 0.08
+                    
+                    # Clamp velocity a rango MIDI válido
+                    vel = max(1, min(127, vel))
 
                     note = pattern.step_note(current_step, energy)
                     if note is not None:
@@ -229,6 +242,12 @@ def main():
                     s.process_pending()
 
                 current_step = (current_step + 1) % session.steps
+                
+                # Avanzar contador de compases al completar ciclo
+                if current_step == 0:
+                    for p in track_patterns:
+                        p.advance_bar()
+                
                 clock.sleep_step()
             else:
                 for s in synths:
