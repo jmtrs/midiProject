@@ -2,12 +2,14 @@ import sys
 import threading
 import queue
 import argparse
+import random
 from pathlib import Path
 
 import readchar
 
 from core.clock import Clock
-from core.config import initial_setup, SessionConfig
+from core.config import SessionConfig
+from core.config import initial_setup
 from core.pattern import TrackPattern, TrackConfig
 from core.synth import MidiSynth
 from core.profiles import ProfileManager
@@ -39,14 +41,14 @@ def get_session_config(args) -> SessionConfig:
     """
     Determina la configuración según argumentos CLI.
 
-    Orden de prioridad:
+    Prioridad:
     1. --profile: carga un perfil nombrado.
     2. last_session.yml: si existe, pregunta si quieres continuar.
     3. Configuración interactiva inicial.
     """
     profile_mgr = ProfileManager()
 
-    # 1) Perfil explícito
+    # Perfil explícito
     if args.profile:
         print(f"Cargando perfil '{args.profile}'...")
         session = profile_mgr.load_profile(args.profile)
@@ -60,7 +62,7 @@ def get_session_config(args) -> SessionConfig:
                 print(f"Perfiles disponibles: {', '.join(available)}")
             sys.exit(1)
 
-    # 2) Última sesión
+    # Última sesión
     if LAST_SESSION_FILE.exists():
         print("Se encontró una sesión anterior.")
         choice = input("¿Cargar última sesión? [Enter = Sí, N = Nueva]: ").strip().lower()
@@ -72,7 +74,7 @@ def get_session_config(args) -> SessionConfig:
             else:
                 print("No se pudo cargar la última sesión. Iniciando nueva.\n")
 
-    # 3) Setup interactivo
+    # Setup interactivo
     return initial_setup()
 
 
@@ -88,8 +90,12 @@ def build_patterns(session: SessionConfig):
     """
     Construye TrackConfig, TrackPattern y TrackState a partir de SessionConfig.
     """
-    cfgs = [
-        TrackConfig(
+    cfgs = []
+    patterns = []
+    states = []
+
+    for t in session.tracks:
+        cfg = TrackConfig(
             name=t.name,
             role=t.role,
             root=t.root,
@@ -97,11 +103,9 @@ def build_patterns(session: SessionConfig):
             density=t.density,
             steps=t.steps,
         )
-        for t in session.tracks
-    ]
-
-    patterns = [TrackPattern(cfg) for cfg in cfgs]
-    states = [TrackState(cfg.name) for cfg in cfgs]
+        cfgs.append(cfg)
+        patterns.append(TrackPattern(cfg))
+        states.append(TrackState(cfg.name))
 
     return cfgs, patterns, states
 
@@ -118,11 +122,23 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    # Seed opcional (visual, sin flags)
+    seed_value = None
+    seed_input = input("Seed (Enter = aleatorio): ").strip()
+    if seed_input:
+        try:
+            seed_value = int(seed_input)
+        except ValueError:
+            # Permitir seeds de texto: las hashamos
+            seed_value = abs(hash(seed_input)) % (2**31)
+        random.seed(seed_value)
+        print(f"Usando seed: {seed_value}\n")
+
     session = get_session_config(args)
 
     clock = Clock(bpm=session.bpm)
     dash = LiveDashboard(steps=session.steps)
-    exporter = MidiExporter()
+    exporter = MidiExporter()  # export rápido (dir por defecto)
 
     track_cfgs, track_patterns, track_states = build_patterns(session)
     synths = [MidiSynth(t.port_name) for t in session.tracks]
@@ -131,6 +147,7 @@ def main() -> None:
     playing = True
     current_step = 0
     energy = session.energy
+    last_export: str | None = None
 
     # Hilo para lectura de teclado
     t = threading.Thread(target=input_worker, daemon=True)
@@ -219,13 +236,13 @@ def main() -> None:
                     cfg = track_cfgs[selected_track]
                     cfg.root = min(100, cfg.root + 1)
 
-                # Fill: pedir fill en todas las pistas
+                # Fill: pedir fill (placeholder, depende de tu implementación interna)
                 elif key.lower() == "f":
                     for p in track_patterns:
                         p.request_fill()
 
-                # Exportar loop MIDI
-                elif key.lower() == "r":
+                # Export rápido: todas las pistas activas, 4 compases, dir por defecto
+                elif key == "r":
                     bars = 4
                     steps_per_bar = session.steps
 
@@ -253,13 +270,87 @@ def main() -> None:
                             energy=energy,
                             filename=None,
                         )
+                        last_export = path
                         print(
                             f"\n[Export] Loop ({bars}x{steps_per_bar}) exportado en: {path}"
+                        )
+
+                # Export avanzado (visual, sin flags)
+                elif key == "R":
+                    print("\n[Export avanzado]")
+                    print("1) Todas pistas activas")
+                    print("2) Solo pista seleccionada")
+                    print("3) Solo drums (kick/hats/perc)")
+                    mode_choice = input("Modo [1]: ").strip() or "1"
+
+                    bars_input = input("Compases [4]: ").strip()
+                    try:
+                        bars = int(bars_input) if bars_input else 4
+                    except ValueError:
+                        bars = 4
+                    if bars < 1:
+                        bars = 1
+
+                    dir_input = input("Directorio [out]: ").strip()
+                    export_dir = dir_input if dir_input else "out"
+
+                    steps_per_bar = session.steps
+                    patterns_to_export = []
+                    names_to_export = []
+
+                    for idx, (cfg, pattern, ts) in enumerate(
+                            zip(track_cfgs, track_patterns, track_states)
+                    ):
+                        if ts.muted:
+                            continue
+
+                        if mode_choice == "2" and idx != selected_track:
+                            continue
+
+                        if (
+                                mode_choice == "3"
+                                and cfg.role not in ("kick", "hats", "perc")
+                        ):
+                            continue
+
+                        cloned = pattern.clone_for_export()
+                        patterns_to_export.append(cloned)
+                        names_to_export.append(cfg.name)
+
+                    if not patterns_to_export:
+                        print("\n[Export] Nada que exportar con estos filtros.")
+                    else:
+                        adv_exporter = MidiExporter(output_dir=export_dir)
+                        path = adv_exporter.render_loop(
+                            patterns=patterns_to_export,
+                            track_names=names_to_export,
+                            bars=bars,
+                            steps_per_bar=steps_per_bar,
+                            bpm=clock.bpm,
+                            energy=energy,
+                            filename=None,
+                        )
+                        last_export = path
+                        print(
+                            f"\n[Export] Loop avanzado ({bars}x{steps_per_bar}) exportado en: {path}"
                         )
 
                 # ESC -> salir
                 elif key == "\x1b":
                     raise KeyboardInterrupt
+
+            # Construir línea de info de la pista seleccionada
+            if 0 <= selected_track < len(track_states):
+                cfg = track_cfgs[selected_track]
+                setup = session.tracks[selected_track]
+                ts = track_states[selected_track]
+                selected_info = (
+                    f"SEL: {cfg.name} | ROLE: {cfg.role} | PORT: {setup.port_name} | "
+                    f"ROOT: {cfg.root} | SCALE: {cfg.scale} | DENS: {cfg.density:.2f} | "
+                    f"LOCK: {'YES' if ts.locked else 'NO'}"
+                )
+            else:
+                selected_info = ""
 
             # Render UI
             dash.draw(
@@ -268,6 +359,10 @@ def main() -> None:
                 mode="Jam",
                 current_step=current_step,
                 tracks=track_states,
+                selected_index=selected_track,
+                selected_info=selected_info,
+                last_export=last_export,
+                seed=seed_value,
             )
 
             # Lógica de generación
@@ -283,8 +378,6 @@ def main() -> None:
                         continue
 
                     role = cfg.role
-
-                    # Velocity y duración ajustados por rol + energía
                     energy_boost = (energy - 3) * 5  # -10 a +10
 
                     if role == "kick":
