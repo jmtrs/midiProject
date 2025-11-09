@@ -151,9 +151,37 @@ def main():
                                 ts.muted = False
 
                 elif key.lower() == "e":
-                    p = track_patterns[selected_track]
-                    p.randomize_mode()
-                    p.randomize_density_soft()
+                    # Randomize solo si no está locked
+                    ts = track_states[selected_track]
+                    if not ts.locked:
+                        p = track_patterns[selected_track]
+                        p.randomize_mode()
+                        p.randomize_density_soft()
+
+                elif key.lower() == "l":
+                    # Lock/unlock pista seleccionada
+                    ts = track_states[selected_track]
+                    ts.locked = not ts.locked
+
+                elif key.lower() == "o":
+                    # Bajar densidad
+                    cfg = track_cfgs[selected_track]
+                    cfg.density = max(0.0, cfg.density - 0.1)
+
+                elif key.lower() == "p":
+                    # Subir densidad
+                    cfg = track_cfgs[selected_track]
+                    cfg.density = min(1.0, cfg.density + 0.1)
+
+                elif key == ",":
+                    # Bajar root (transponer abajo)
+                    cfg = track_cfgs[selected_track]
+                    cfg.root = max(12, cfg.root - 1)
+
+                elif key == ".":
+                    # Subir root (transponer arriba)
+                    cfg = track_cfgs[selected_track]
+                    cfg.root = min(100, cfg.root + 1)
 
                 elif key == "\x1b":
                     raise KeyboardInterrupt
