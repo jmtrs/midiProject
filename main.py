@@ -89,10 +89,13 @@ def save_last_session(session: SessionConfig) -> None:
 def build_patterns(session: SessionConfig):
     """
     Construye TrackConfig, TrackPattern y TrackState a partir de SessionConfig.
+    Inyecta el theme como 'style' para activar pattern packs por estilo.
     """
     cfgs = []
     patterns = []
     states = []
+
+    style = getattr(session, "theme", "custom")
 
     for t in session.tracks:
         cfg = TrackConfig(
@@ -102,6 +105,7 @@ def build_patterns(session: SessionConfig):
             scale=t.scale,
             density=t.density,
             steps=t.steps,
+            style=style,
         )
         cfgs.append(cfg)
         patterns.append(TrackPattern(cfg))

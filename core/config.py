@@ -1,11 +1,11 @@
 import mido
 from dataclasses import dataclass
-from typing import List, Dict
+from typing import List, Dict, Optional
 
-# Roles disponibles. El rol define el comportamiento rítmico/melódico.
+# Roles disponibles
 ROLES = ["kick", "bass", "hats", "perc", "stab", "lead", "pad", "fx", "raw"]
 
-# Plantillas opcionales (no obligan, solo inicializan valores).
+# Plantillas de temas
 THEMES: Dict[str, Dict] = {
     "dark_174": {
         "label": "Dark 174",
@@ -45,6 +45,8 @@ class SessionConfig:
     steps: int
     energy: int
     tracks: List[TrackSetup]
+    # Clave del tema usado (dark_174, makina_180, industrial_172, custom...)
+    theme: str = "custom"
 
 
 def _ask_int(prompt: str, default: int, min_v: int, max_v: int) -> int:
@@ -60,7 +62,7 @@ def _ask_int(prompt: str, default: int, min_v: int, max_v: int) -> int:
 
 def _ask_choice(prompt: str, options: List[str], default_idx: int = 0) -> str:
     for i, o in enumerate(options, start=1):
-        print(f"  {i}. {o}")
+        print(f" {i}. {o}")
     raw = input(f"{prompt} [{default_idx + 1}]: ").strip()
     if not raw:
         return options[default_idx]
@@ -77,27 +79,28 @@ def _list_ports() -> List[str]:
     return mido.get_output_names()
 
 
-def _propose_quick_setup(ports: List[str]) -> SessionConfig:
-    """Propone una configuración rápida y razonable."""
+def _propose_quick_setup(ports: List[str]) -> Optional[SessionConfig]:
+    """
+    Config rápida: 4 pistas típicas y tema dark_174 por defecto.
+    """
     print("\n=== Configuración rápida ===")
     print("\nConfiguración propuesta:")
-    print(f"  BPM: 174  |  Energy: 3  |  Pasos: 16\n")
-    
+    print(" BPM: 174 | Energy: 3 | Pasos: 16\n")
+
     default_port = ports[0] if ports else "IAC Driver Bus 1"
-    
+
     configs = [
         ("KICK", "kick", 36, "darktech", 1.0),
         ("BASS", "bass", 42, "darktech", 0.8),
         ("HATS", "hats", 70, "darktech", 0.6),
         ("LEAD", "lead", 60, "phrygian", 0.3),
     ]
-    
+
     for name, role, root, scale, density in configs:
-        print(f"  Pista {name:6} → [{default_port}] ({role}, root {root})")
-    
+        print(f" Pista {name:6} → [{default_port}] ({role}, root {root})")
+
     print("\n¿Aceptar esta configuración?")
     accept = input("[Enter = Sí, N = Editar paso a paso]: ").strip().lower()
-    
     if accept != "n":
         tracks = [
             TrackSetup(
@@ -111,40 +114,45 @@ def _propose_quick_setup(ports: List[str]) -> SessionConfig:
             )
             for name, role, root, scale, density in configs
         ]
-        return SessionConfig(bpm=174, steps=16, energy=3, tracks=tracks)
-    
+        return SessionConfig(
+            bpm=174,
+            steps=16,
+            energy=3,
+            tracks=tracks,
+            theme="dark_174",
+        )
+
     return None
 
 
 def initial_setup() -> SessionConfig:
     print("=== DARK MAKINA - Configuración inicial ===")
-    
-    # Puertos MIDI
+
     ports = _list_ports()
     if not ports:
         raise SystemExit("No hay puertos MIDI de salida disponibles.")
 
     print("\nPuertos MIDI detectados:")
     for i, p in enumerate(ports, start=1):
-        print(f"  {i}. {p}")
-    
+        print(f" {i}. {p}")
+
     # Intentar configuración rápida
     quick = _propose_quick_setup(ports)
     if quick:
         return quick
-    
-    # Si rechazan quick setup, modo manual completo
+
+    # Manual
     print("\n=== Configuración manual ===")
 
-    # Elegir tema base
+    # Tema base
     theme_keys = list(THEMES.keys()) + ["custom"]
     print("\nTemas disponibles:")
     for i, k in enumerate(theme_keys, start=1):
         if k == "custom":
-            print(f"  {i}. Custom (configuración manual)")
+            print(f" {i}. Custom (configuración manual)")
         else:
             t = THEMES[k]
-            print(f"  {i}. {t['label']} ({k}) - {t['bpm']} BPM")
+            print(f" {i}. {t['label']} ({k}) - {t['bpm']} BPM")
 
     choice = input("> ").strip()
     try:
@@ -165,30 +173,32 @@ def initial_setup() -> SessionConfig:
         bpm = t["bpm"]
         steps = t.get("steps", 16)
         energy = t.get("energy", 3)
-        print(f"Usando plantilla {t['label']} - BPM {bpm}, pasos {steps}, energía {energy}")
+        print(
+            f"Usando plantilla {t['label']} - BPM {bpm}, pasos {steps}, energía {energy}"
+        )
 
-    # Número de pistas
+    # Pistas
     num_tracks = _ask_int("\nNúmero de pistas (1-8)", 4, 1, 8)
-
     tracks: List[TrackSetup] = []
 
     for i in range(num_tracks):
         print(f"\nConfigurar pista {i + 1}:")
 
-        # Nombre sugerido
         sugeridos = ["KICK", "BASS", "HATS", "LEAD"]
         name_default = sugeridos[i] if i < len(sugeridos) else f"TRK{i + 1}"
         name = input(f"Nombre pista [{name_default}]: ").strip().upper() or name_default
 
-        # Rol musical
         print("Rol disponible:")
-        role = _ask_choice("Selecciona rol", ROLES, default_idx=min(i, len(ROLES) - 1))
+        role = _ask_choice(
+            "Selecciona rol",
+            ROLES,
+            default_idx=min(i, len(ROLES) - 1),
+        )
 
-        # Puerto MIDI
         print("Selecciona puerto para esta pista:")
         port = _ask_choice("Puerto MIDI de salida", ports, default_idx=0)
 
-        # Defaults según rol
+        # Defaults por rol
         if role == "kick":
             root_default = 36
             scale_default = "darktech"
@@ -236,4 +246,10 @@ def initial_setup() -> SessionConfig:
         )
 
     print("\nConfiguración completada.\n")
-    return SessionConfig(bpm=bpm, steps=steps, energy=energy, tracks=tracks)
+    return SessionConfig(
+        bpm=bpm,
+        steps=steps,
+        energy=energy,
+        tracks=tracks,
+        theme=theme_key,
+    )

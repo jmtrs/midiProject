@@ -1,46 +1,61 @@
 bpm: 180
 steps: 16
 energy: 4
+theme: makina_180
+
 tracks:
-- name: KICK
-  role: kick
-  port_name: Driver IAC PythonToSurge
-  root: 36
-  scale: darktech
-  density: 1.0
-  steps: 16
-- name: BASS
-  role: bass
-  port_name: Driver IAC PythonToMonique
-  root: 40
-  scale: phrygian
-  density: 0.9
-  steps: 16
-- name: HATS
-  role: hats
-  port_name: Driver IAC PythonToMonique
-  root: 72
-  scale: darktech
-  density: 0.8
-  steps: 16
-- name: PERC
-  role: perc
-  port_name: Driver IAC PythonToMonique
-  root: 68
-  scale: darktech
-  density: 0.5
-  steps: 16
-- name: STAB
-  role: stab
-  port_name: Driver IAC PythonToMonique
-  root: 62
-  scale: phrygian
-  density: 0.4
-  steps: 16
-- name: PAD
-  role: pad
-  port_name: Driver IAC PythonToSurge
-  root: 48
-  scale: phrygian
-  density: 0.3
-  steps: 16
+  - name: KICK
+    role: kick
+    port_name: Driver IAC PythonToSurge
+    root: 36
+    scale: darktech
+    density: 1.0
+    steps: 16
+
+  - name: BASS
+    role: bass
+    port_name: Driver IAC PythonToMonique
+    root: 40
+    scale: phrygian
+    density: 0.8
+    steps: 16
+
+  - name: HATS
+    role: hats
+    port_name: Driver IAC PythonToTyrell
+    root: 70
+    scale: darktech
+    density: 0.9
+    steps: 16
+
+  - name: PERC
+    role: perc
+    port_name: Driver IAC PythonToTyrell
+    root: 65
+    scale: darktech
+    density: 0.6
+    steps: 16
+
+  - name: LEAD
+    role: lead
+    port_name: Driver IAC PythonToMonique
+    root: 60
+    scale: phrygian
+    density: 0.4
+    steps: 16
+
+  - name: STAB
+    role: stab
+    port_name: Driver IAC PythonToMonique
+    root: 62
+    scale: phrygian
+    density: 0.3
+    steps: 16
+
+  - name: PAD
+    role: pad
+    port_name: Driver IAC PythonToSurge
+    root: 48
+    scale: phrygian
+    density: 0.25
+    steps: 16
