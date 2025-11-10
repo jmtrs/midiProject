@@ -58,12 +58,15 @@ class Dashboard:
             selected_info: Optional[str] = None,
             last_export: Optional[str] = None,
             seed: Optional[int] = None,
+            current_scene: Optional[int] = None,
     ) -> None:
         table = Table.grid(padding=(0, 1))
 
         header_1 = f"BPM: {bpm}"
         header_2 = f"ENERGY: {energy}"
         header_3 = f"MODE: {mode}"
+        if current_scene is not None:
+            header_3 += f" | SCENE: {current_scene}"
         if seed is not None:
             header_3 += f" | SEED: {seed}"
 
@@ -93,7 +96,8 @@ class Dashboard:
             "[SPACE] Play/Pause  [1-8] Sel  [Q] Mute  [W] Solo  [L] Lock  "
             "[E] Rand  [A/S] BPM-/+  [Z/X] Energy-/+  "
             "[O/P] Density-/+  [,/.] Root-/+  "
-            "[r] Export rápido  [R] Export avanzado  [ESC] Quit",
+            "[r] Export rápido  [R] Export avanzado  "
+            "[Shift+1-9] Save scene  [1-9] Load scene  [ESC] Quit",
             style="dim",
         )
 
@@ -113,6 +117,7 @@ class LiveDashboard:
             selected_info: Optional[str] = None,
             last_export: Optional[str] = None,
             seed: Optional[int] = None,
+            current_scene: Optional[int] = None,
     ) -> None:
         self.dashboard.render(
             bpm=bpm,
@@ -124,4 +129,5 @@ class LiveDashboard:
             selected_info=selected_info,
             last_export=last_export,
             seed=seed,
+            current_scene=current_scene,
         )

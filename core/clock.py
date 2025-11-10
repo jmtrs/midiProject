@@ -8,6 +8,7 @@ class Clock:
 
     def __init__(self, bpm: int = 174, steps_per_beat: int = 4) -> None:
         self.steps_per_beat = steps_per_beat
+        self.energy = 3  # Valor por defecto para energía
         self.set_bpm(bpm)
 
     def set_bpm(self, bpm: int) -> None:

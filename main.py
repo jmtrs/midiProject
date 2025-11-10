@@ -14,6 +14,7 @@ from core.pattern import TrackPattern, TrackConfig
 from core.synth import MidiSynth
 from core.profiles import ProfileManager
 from core.midi_export import MidiExporter
+from core.scenes import SceneManager
 from ui.dashboard import LiveDashboard, TrackState
 
 KEY_QUEUE: "queue.Queue[str]" = queue.Queue()
@@ -31,7 +32,11 @@ def input_worker() -> None:
         except Exception:
             continue
 
-        KEY_QUEUE.put(key)
+        # Detectar si se mantiene pulsada tecla Shift
+        if len(key) == 1 and key.isupper():
+            KEY_QUEUE.put("SHIFT+" + key.lower())
+        else:
+            KEY_QUEUE.put(key)
 
         if key == "\x1b":  # ESC
             break
@@ -144,6 +149,9 @@ def main() -> None:
     dash = LiveDashboard(steps=session.steps)
     exporter = MidiExporter()  # export rápido (dir por defecto)
 
+    # Sistema de escenas
+    scene_mgr = SceneManager()
+    
     track_cfgs, track_patterns, track_states = build_patterns(session)
     synths = [MidiSynth(t.port_name) for t in session.tracks]
 
@@ -152,6 +160,10 @@ def main() -> None:
     current_step = 0
     energy = session.energy
     last_export: str | None = None
+    
+    # Para pasar por referencia a SceneManager
+    class EnergyWrapper:
+        value = energy
 
     # Hilo para lectura de teclado
     t = threading.Thread(target=input_worker, daemon=True)
@@ -279,6 +291,26 @@ def main() -> None:
                             f"\n[Export] Loop ({bars}x{steps_per_bar}) exportado en: {path}"
                         )
 
+                # Guardar escena (Shift+1-9)
+                elif key.startswith("SHIFT+") and key[6:] in "123456789":
+                    slot = int(key[6:])
+                    # Guardar el estado de energía actual en clock antes de guardar la escena
+                    clock.energy = energy
+                    if scene_mgr.save_scene(slot, session, clock, track_states, track_cfgs):
+                        print(f"✓ Escena {slot} guardada")
+                    else:
+                        print(f"✗ Error al guardar escena {slot}")
+                
+                # Cargar escena (1-9)
+                elif key in "123456789":
+                    slot = int(key)
+                    wrapper = EnergyWrapper()
+                    if scene_mgr.load_scene(slot, clock, track_states, track_cfgs, wrapper):
+                        energy = wrapper.value  # Actualizar energía local
+                        print(f"✓ Escena {slot} cargada")
+                    else:
+                        print(f"✗ Escena {slot} no encontrada")
+                
                 # Export avanzado (visual, sin flags)
                 elif key == "R":
                     print("\n[Export avanzado]")
@@ -367,6 +399,7 @@ def main() -> None:
                 selected_info=selected_info,
                 last_export=last_export,
                 seed=seed_value,
+                current_scene=scene_mgr.current_scene,
             )
 
             # Lógica de generación
