@@ -160,11 +160,8 @@ def main() -> None:
     current_step = 0
     energy = session.energy
     last_export: str | None = None
+    scene_mode = False  # Si está True, números cargan escenas; si está False, números seleccionan pistas
     
-    # Para pasar por referencia a SceneManager
-    class EnergyWrapper:
-        value = energy
-
     # Hilo para lectura de teclado
     t = threading.Thread(target=input_worker, daemon=True)
     t.start()
@@ -179,11 +176,34 @@ def main() -> None:
                 if key == " ":
                     playing = not playing
 
-                # Selección de pista (1-8)
-                elif key in ("1", "2", "3", "4", "5", "6", "7", "8"):
-                    idx = int(key) - 1
-                    if 0 <= idx < len(track_states):
-                        selected_track = idx
+                # Modo de escenas - activar/desactivar
+                elif key.lower() == "i":
+                    scene_mode = not scene_mode
+                    mode_label = "Scene" if scene_mode else "Jam"
+                    print(f"\n→ Modo: {mode_label}")
+                
+                # Selección de pista (1-8) o carga de escena (1-9 si scene_mode)
+                elif key in ("1", "2", "3", "4", "5", "6", "7", "8", "9"):
+                    if scene_mode:
+                        # Modo escenas: números cargan escenas
+                        slot = int(key)
+                        # Crear un wrapper simple para pasar energía
+                        class _EnergyHolder:
+                            pass
+                        holder = _EnergyHolder()
+                        holder.value = energy
+                        
+                        if scene_mgr.load_scene(slot, clock, track_states, track_cfgs, holder):
+                            energy = scene_mgr.scenes[slot].energy
+                            print(f"✓ Escena {slot} cargada")
+                        else:
+                            print(f"✗ Escena {slot} no encontrada")
+                    else:
+                        # Modo Jam: números seleccionan pistas (1-8)
+                        if key != "9":  # 9 solo en scene_mode
+                            idx = int(key) - 1
+                            if 0 <= idx < len(track_states):
+                                selected_track = idx
 
                 # BPM -
                 elif key.lower() == "a":
@@ -294,22 +314,11 @@ def main() -> None:
                 # Guardar escena (Shift+1-9)
                 elif key.startswith("SHIFT+") and key[6:] in "123456789":
                     slot = int(key[6:])
-                    # Guardar el estado de energía actual en clock antes de guardar la escena
-                    clock.energy = energy
-                    if scene_mgr.save_scene(slot, session, clock, track_states, track_cfgs):
+                    # Guardar el estado de energía actual
+                    if scene_mgr.save_scene(slot, session, clock, track_states, track_cfgs, energy):
                         print(f"✓ Escena {slot} guardada")
                     else:
                         print(f"✗ Error al guardar escena {slot}")
-                
-                # Cargar escena (1-9)
-                elif key in "123456789":
-                    slot = int(key)
-                    wrapper = EnergyWrapper()
-                    if scene_mgr.load_scene(slot, clock, track_states, track_cfgs, wrapper):
-                        energy = wrapper.value  # Actualizar energía local
-                        print(f"✓ Escena {slot} cargada")
-                    else:
-                        print(f"✗ Escena {slot} no encontrada")
                 
                 # Export avanzado (visual, sin flags)
                 elif key == "R":
@@ -392,7 +401,7 @@ def main() -> None:
             dash.draw(
                 bpm=clock.bpm,
                 energy=energy,
-                mode="Jam",
+                mode="Scene" if scene_mode else "Jam",
                 current_step=current_step,
                 tracks=track_states,
                 selected_index=selected_track,

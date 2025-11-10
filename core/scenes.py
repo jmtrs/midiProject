@@ -44,7 +44,7 @@ class SceneManager:
         self.current_scene: Optional[int] = None
     
     def save_scene(self, slot: int, session: SessionConfig, clock, 
-                  track_states, track_cfgs) -> bool:
+                  track_states, track_cfgs, energy: int) -> bool:
         """
         Guarda el estado actual en un slot de escena.
         """
@@ -54,7 +54,7 @@ class SceneManager:
         # Capturar estado global
         scene = Scene()
         scene.bpm = clock.bpm
-        scene.energy = getattr(clock, 'energy', 3)  # Por si acaso
+        scene.energy = energy
         
         # Capturar estado por pista
         for track_state, track_cfg in zip(track_states, track_cfgs):
@@ -73,6 +73,7 @@ class SceneManager:
     def load_scene(self, slot: int, clock, track_states, track_cfgs, energy_var) -> bool:
         """
         Carga una escena y aplica el estado guardado.
+        energy_var debe ser un objeto con atributo 'value' o una variable mutable.
         """
         if not 1 <= slot <= 9 or slot not in self.scenes:
             return False
@@ -84,8 +85,12 @@ class SceneManager:
         if scene.bpm is not None:
             clock.set_bpm(scene.bpm)
         
-        energy_var.value = scene.energy  # Actualizar variable de energía
-        clock.energy = scene.energy  # Actualizar energía en clock si existe
+        if hasattr(energy_var, 'value'):
+            energy_var.value = scene.energy  # Actualizar variable de energía si es un objeto
+        
+        # Intentar actualizar energía en clock si existe
+        if hasattr(clock, 'energy'):
+            clock.energy = scene.energy
         
         # Aplicar estado por pista
         for i, track_scene in enumerate(scene.tracks):
