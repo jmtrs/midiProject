@@ -3,7 +3,9 @@ import threading
 import queue
 import argparse
 import random
+import time
 from pathlib import Path
+from time import monotonic as now
 
 import readchar
 
@@ -151,7 +153,7 @@ def main() -> None:
 
     # Sistema de escenas
     scene_mgr = SceneManager()
-    
+
     track_cfgs, track_patterns, track_states = build_patterns(session)
     synths = [MidiSynth(t.port_name) for t in session.tracks]
 
@@ -161,15 +163,20 @@ def main() -> None:
     energy = session.energy
     last_export: str | None = None
     scene_mode = False  # Si está True, números cargan escenas; si está False, números seleccionan pistas
-    
+
+    ui_update_counter = 0  # Contador para dibujar UI solo cada N iteraciones
+    UI_UPDATE_INTERVAL = 4  # Actualizar UI cada 4 steps
+
     # Hilo para lectura de teclado
     t = threading.Thread(target=input_worker, daemon=True)
     t.start()
 
     try:
         while True:
-            # Procesar teclas pendientes
-            while not KEY_QUEUE.empty():
+            step_start_time = now()  # Marca exacta del inicio del step
+
+            # Procesar solo UNA tecla por iteración para no bloquear el audio
+            if not KEY_QUEUE.empty():
                 key = KEY_QUEUE.get()
 
                 # Play/Pause
@@ -181,7 +188,7 @@ def main() -> None:
                     scene_mode = not scene_mode
                     mode_label = "Scene" if scene_mode else "Jam"
                     print(f"\n→ Modo: {mode_label}")
-                
+
                 # Selección de pista (1-8) o carga de escena (1-9 si scene_mode)
                 elif key in ("1", "2", "3", "4", "5", "6", "7", "8", "9"):
                     if scene_mode:
@@ -192,7 +199,7 @@ def main() -> None:
                             pass
                         holder = _EnergyHolder()
                         holder.value = energy
-                        
+
                         if scene_mgr.load_scene(slot, clock, track_states, track_cfgs, holder):
                             energy = scene_mgr.scenes[slot].energy
                             print(f"✓ Escena {slot} cargada")
@@ -272,19 +279,17 @@ def main() -> None:
                     cfg = track_cfgs[selected_track]
                     cfg.root = min(100, cfg.root + 1)
 
-                # Fill: pedir fill (placeholder, depende de tu implementación interna)
+                # Fill: pedir fill
                 elif key.lower() == "f":
                     for p in track_patterns:
                         p.request_fill()
 
-                # Export rápido: todas las pistas activas, 4 compases, dir por defecto
+                # Export rápido: todas las pistas activas, 4 compases
                 elif key == "r":
                     bars = 4
                     steps_per_bar = session.steps
-
                     active_patterns = []
                     active_names = []
-
                     for cfg, pattern, ts in zip(
                             track_cfgs, track_patterns, track_states
                     ):
@@ -294,9 +299,7 @@ def main() -> None:
                         active_patterns.append(cloned)
                         active_names.append(cfg.name)
 
-                    if not active_patterns:
-                        print("\n[Export] No hay pistas activas para exportar.")
-                    else:
+                    if active_patterns:
                         path = exporter.render_loop(
                             patterns=active_patterns,
                             track_names=active_names,
@@ -307,111 +310,50 @@ def main() -> None:
                             filename=None,
                         )
                         last_export = path
-                        print(
-                            f"\n[Export] Loop ({bars}x{steps_per_bar}) exportado en: {path}"
-                        )
 
                 # Guardar escena (Shift+1-9)
                 elif key.startswith("SHIFT+") and key[6:] in "123456789":
                     slot = int(key[6:])
                     # Guardar el estado de energía actual
-                    if scene_mgr.save_scene(slot, session, clock, track_states, track_cfgs, energy):
-                        print(f"✓ Escena {slot} guardada")
-                    else:
-                        print(f"✗ Error al guardar escena {slot}")
-                
-                # Export avanzado (visual, sin flags)
-                elif key == "R":
-                    print("\n[Export avanzado]")
-                    print("1) Todas pistas activas")
-                    print("2) Solo pista seleccionada")
-                    print("3) Solo drums (kick/hats/perc)")
-                    mode_choice = input("Modo [1]: ").strip() or "1"
-
-                    bars_input = input("Compases [4]: ").strip()
-                    try:
-                        bars = int(bars_input) if bars_input else 4
-                    except ValueError:
-                        bars = 4
-                    if bars < 1:
-                        bars = 1
-
-                    dir_input = input("Directorio [out]: ").strip()
-                    export_dir = dir_input if dir_input else "out"
-
-                    steps_per_bar = session.steps
-                    patterns_to_export = []
-                    names_to_export = []
-
-                    for idx, (cfg, pattern, ts) in enumerate(
-                            zip(track_cfgs, track_patterns, track_states)
-                    ):
-                        if ts.muted:
-                            continue
-
-                        if mode_choice == "2" and idx != selected_track:
-                            continue
-
-                        if (
-                                mode_choice == "3"
-                                and cfg.role not in ("kick", "hats", "perc")
-                        ):
-                            continue
-
-                        cloned = pattern.clone_for_export()
-                        patterns_to_export.append(cloned)
-                        names_to_export.append(cfg.name)
-
-                    if not patterns_to_export:
-                        print("\n[Export] Nada que exportar con estos filtros.")
-                    else:
-                        adv_exporter = MidiExporter(output_dir=export_dir)
-                        path = adv_exporter.render_loop(
-                            patterns=patterns_to_export,
-                            track_names=names_to_export,
-                            bars=bars,
-                            steps_per_bar=steps_per_bar,
-                            bpm=clock.bpm,
-                            energy=energy,
-                            filename=None,
-                        )
-                        last_export = path
-                        print(
-                            f"\n[Export] Loop avanzado ({bars}x{steps_per_bar}) exportado en: {path}"
-                        )
+                    scene_mgr.save_scene(slot, session, clock, track_states, track_cfgs, energy)
 
                 # ESC -> salir
                 elif key == "\x1b":
                     raise KeyboardInterrupt
 
-            # Construir línea de info de la pista seleccionada
-            if 0 <= selected_track < len(track_states):
-                cfg = track_cfgs[selected_track]
-                setup = session.tracks[selected_track]
-                ts = track_states[selected_track]
-                selected_info = (
-                    f"SEL: {cfg.name} | ROLE: {cfg.role} | PORT: {setup.port_name} | "
-                    f"ROOT: {cfg.root} | SCALE: {cfg.scale} | DENS: {cfg.density:.2f} | "
-                    f"LOCK: {'YES' if ts.locked else 'NO'}"
+            # Actualizar UI solo cada N iteraciones para no bloquear audio
+            ui_update_counter += 1
+            if ui_update_counter >= UI_UPDATE_INTERVAL:
+                ui_update_counter = 0
+
+                # Construir línea de info de la pista seleccionada
+                if 0 <= selected_track < len(track_states):
+                    cfg = track_cfgs[selected_track]
+                    setup = session.tracks[selected_track]
+                    ts = track_states[selected_track]
+                    selected_info = (
+                        f"SEL: {cfg.name} | ROLE: {cfg.role} | PORT: {setup.port_name} | "
+                        f"ROOT: {cfg.root} | SCALE: {cfg.scale} | DENS: {cfg.density:.2f} | "
+                        f"LOCK: {'YES' if ts.locked else 'NO'}"
+                    )
+                else:
+                    selected_info = ""
+
+                # Render UI (operación costosa - solo cada N iteraciones)
+                dash.draw(
+                    bpm=clock.bpm,
+                    energy=energy,
+                    mode="Scene" if scene_mode else "Jam",
+                    current_step=current_step,
+                    tracks=track_states,
+                    selected_index=selected_track,
+                    selected_info=selected_info,
+                    last_export=last_export,
+                    seed=seed_value,
+                    current_scene=scene_mgr.current_scene,
                 )
-            else:
-                selected_info = ""
 
-            # Render UI
-            dash.draw(
-                bpm=clock.bpm,
-                energy=energy,
-                mode="Scene" if scene_mode else "Jam",
-                current_step=current_step,
-                tracks=track_states,
-                selected_index=selected_track,
-                selected_info=selected_info,
-                last_export=last_export,
-                seed=seed_value,
-                current_scene=scene_mgr.current_scene,
-            )
-
-            # Lógica de generación
+            # Lógica de generación (ocurre ANTES del sleep para precisión de timing)
             if playing:
                 any_solo = any(ts.solo for ts in track_states)
 
@@ -456,13 +398,17 @@ def main() -> None:
                 if current_step == 0:
                     for p in track_patterns:
                         p.advance_bar()
-
-                clock.sleep_step()
             else:
                 # Pausa: solo mantenemos limpieza de notas
                 for s in synths:
                     s.process_pending()
-                clock.sleep_step()
+
+            # Dormir el tiempo exacto que falta para el siguiente step
+            # Esto hace el timing preciso sin depender de console.clear()
+            elapsed = now() - step_start_time
+            sleep_time = clock.get_step_duration() - elapsed
+            if sleep_time > 0:
+                time.sleep(sleep_time)
 
     except KeyboardInterrupt:
         # Apagar notas y guardar sesión
