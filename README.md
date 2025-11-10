@@ -39,9 +39,74 @@ para sacar grooves rápidos, probar ideas y exportarlas a MIDI.
     - Densidad +/- por pista.
     - Transpose +/- por pista.
     - Trigger de fills (marcador interno).
+    - **Scenes (novedad)**: Guarda y carga snapshots de estado (mute/solo/lock/densidad/root/energy/BPM).
 - Salida MIDI real:
     - `mido` + `python-rtmidi`.
     - Enrutamiento a cualquier DAW/sinte vía puertos virtuales.
+
+## Sistema de Scenes (novedad)
+
+Las **Scenes** permiten guardar y recuperar snapshots completos del estado actual sin cambiar puertos ni roles. Es perfecto para transiciones en directo o para comparar variaciones rápidamente.
+
+### ¿Qué guarda una Scene?
+
+- **Global**:
+  - BPM actual (opcional)
+  - Nivel de energía (1-5)
+- **Por pista**:
+  - Estado de mute/solo/lock
+  - Densidad (override temporal)
+  - Nota raíz (para cambios de tonalidad por escena)
+
+### ¿Qué NO guarda una Scene?
+
+- Puertos MIDI
+- Roles de las pistas
+- Número o estructura de pistas
+
+### Uso en tiempo real
+
+- **Guardar Scene**: Mayúscula + número (SHIFT+1 a SHIFT+9)
+- **Cargar Scene**: Tecla de número (1 a 9)
+- La escena activa se muestra en la UI: `MODE: Jam | SCENE: 3`
+
+### Flujo de trabajo típico
+
+1. **Configuración base**: Define tus pistas, puertos y roles desde perfil
+2. **Escena 1 (intro)**: Configura un estado minimalista (solo kick y bass), pulsa SHIFT+1
+3. **Escena 2 (main groove)**: Añade más pistas, ajusta energía, pulsa SHIFT+2
+4. **Escena 3 (break)**: Mutea algunas pistas, cambia densidad, pulsa SHIFT+3
+5. **En directo**: Cambia entre escenas con las teclas 1, 2, 3 según necesites
+
+Las scenes viven solo en memoria durante la sesión. Para guardarlas permanentemente, guarda el perfil completo.
+
+## Atajos de teclado
+
+### Control principal
+- `[ESPACIO]` - Play/Pause
+- `1-8` - Seleccionar pista
+- `Q` - Mutea pista seleccionada
+- `W` - Solo pista seleccionada
+- `L` - Lock/Unlock pista seleccionada
+- `E` - Random suave (si no está lockeada)
+- `ESC` - Salir y guardar sesión
+
+### Parámetros globales
+- `A/S` - BPM -/+
+- `Z/X` - Energía -/+
+
+### Parámetros por pista
+- `O/P` - Densidad -/+
+- `,/.` - Transpose -/+
+- `F` - Trigger fill
+
+### Systema de scenes
+- `SHIFT+1-9` - Guardar escena actual en slot 1-9
+- `1-9` - Cargar escena desde slot 1-9
+
+### Export MIDI
+- `r` - Export rápido (todas las pistas activas, 4 compases)
+- `R` - Export avanzado (con menú de opciones)
 
 ## Exportar loops a MIDI
 
